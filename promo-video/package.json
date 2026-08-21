@@ -1,0 +1,28 @@
+{
+  "name": "kpi-pulse-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Рекламное видео KPI Pulse (Remotion)",
+  "scripts": {
+    "preview": "remotion studio src/index.ts",
+    "build": "remotion render src/index.ts KpiPulsePromo output/kpi-pulse-promo-ru.mp4 --props=props-silent.json",
+    "build:silent": "remotion render src/index.ts KpiPulsePromo output/kpi-pulse-promo-ru.mp4 --props=props-silent.json",
+    "build:vo": "remotion render src/index.ts KpiPulsePromo output/kpi-pulse-promo-ru.mp4 --props=props-voiceover.json",
+    "build:vertical": "remotion render src/index.ts KpiPulsePromoVertical output/kpi-pulse-promo-vertical-ru.mp4 --props=props-silent.json",
+    "still:cover": "remotion still src/index.ts KpiPulseCover output/kpi-pulse-cover.png",
+    "music": "python scripts/generate_bgm.py",
+    "voiceover": "python scripts/generate_voiceover.py",
+    "all": "npm run music && npm run still:cover && npm run build:silent && npm run build:vertical"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.370",
+    "@remotion/google-fonts": "^4.0.370",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.370"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  }
+}
