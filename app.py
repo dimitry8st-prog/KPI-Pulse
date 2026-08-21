@@ -5,6 +5,7 @@ Streamlit-приложение KPI Pulse.
 
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,6 +21,7 @@ from src.data_loader import DataLoader
 from src.db import ChatDatabase
 from src.kpi_calculator import KPICalculator
 from src.llm_client import LLMClient
+from src.interaction_logger import Interaction, InteractionLogger
 from src.rag_engine import RAGEngine
 from src.telegram_bot import TelegramDigestBot
 
@@ -266,18 +268,39 @@ def render_ai_tab(db: ChatDatabase) -> None:
 
 def get_ai_answer(question: str) -> str:
     """Получает ответ AI-аналитика через RAG + LLM."""
+    started_at = time.perf_counter()
+    interaction_logger = InteractionLogger(get_config().LOG_DB_PATH)
     try:
         config = get_config()
         if not config.CLAUDE_API_KEY and config.LLM_PROVIDER == "claude":
-            return "⚠️ CLAUDE_API_KEY не задан. Добавьте ключ в .env"
+            answer = "⚠️ CLAUDE_API_KEY не задан. Добавьте ключ в .env"
+            interaction_logger.log(Interaction(
+                source="streamlit", event_type="ai_question", status="error",
+                request=question, response=answer,
+                duration_ms=int((time.perf_counter() - started_at) * 1000),
+                error="missing_api_key",
+            ))
+            return answer
 
         rag = RAGEngine()
         context = rag.search(question)
         kpis = st.session_state.kpis or {}
         llm = LLMClient(provider=config.LLM_PROVIDER)
-        return llm.ask(question, context, kpis)
+        answer = llm.ask(question, context, kpis)
+        interaction_logger.log(Interaction(
+            source="streamlit", event_type="ai_question", request=question,
+            response=answer,
+            duration_ms=int((time.perf_counter() - started_at) * 1000),
+        ))
+        return answer
     except Exception as exc:
         logger.error("Ошибка AI-ответа: %s", exc)
+        interaction_logger.log(Interaction(
+            source="streamlit", event_type="ai_question", status="error",
+            request=question,
+            duration_ms=int((time.perf_counter() - started_at) * 1000),
+            error=str(exc),
+        ))
         return f"Ошибка: {exc}"
 
 
@@ -302,6 +325,18 @@ def render_settings_tab(db: ChatDatabase) -> None:
     st.write(f"**LLM-провайдер:** {config.LLM_PROVIDER}")
     st.write(f"**ChromaDB:** {config.CHROMA_DB_PATH}")
     st.write(f"**SQLite:** {config.SQLITE_DB_PATH}")
+
+    st.subheader("Журнал взаимодействий")
+    audit_logger = InteractionLogger(config.LOG_DB_PATH)
+    stats = audit_logger.get_stats()
+    log_cols = st.columns(4)
+    log_cols[0].metric("События", stats["total"])
+    log_cols[1].metric("Успешно", stats["successful"])
+    log_cols[2].metric("Ошибки", stats["failed"])
+    log_cols[3].metric("Среднее время", f'{stats["avg_duration_ms"]:.0f} мс')
+    if st.button("Экспортировать логи в CSV"):
+        output = audit_logger.export_csv("./logs/kpi_pulse_interactions.csv")
+        st.success(f"Логи экспортированы: {output}")
 
     if st.button("📨 Отправить дайджест сейчас"):
         send_digest_now()
