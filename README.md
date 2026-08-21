@@ -12,7 +12,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-дашборд-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Claude](https://img.shields.io/badge/Claude-AI-191919?style=for-the-badge&logo=anthropic&logoColor=white)](https://www.anthropic.com/)
 [![Telegram](https://img.shields.io/badge/Telegram-бот-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://telegram.org/)
-[![Tests](https://img.shields.io/badge/Tests-24%20passed-success?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-26%20passed-success?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br>
@@ -101,6 +101,7 @@ Telegram-бот отправляет еженедельный отчёт по р
 | **RAG-движок** | ChromaDB индексирует данные для контекстного поиска |
 | **AI-аналитик** | Claude отвечает на вопросы с цифрами и рекомендациями |
 | **Telegram-бот** | Команды `/start`, `/digest`, еженедельный дайджест по расписанию |
+| **Журналирование** | SQLite-аудит AI/Telegram, latency, ошибки, статистика и CSV-экспорт |
 
 <details>
 <summary><b>📊 Дашборд KPI — подробнее</b></summary>
@@ -258,7 +259,8 @@ python bot.py
 pytest tests/ -v
 ```
 
-Ожидаемый результат: **24 passed** — покрыты все 5 KPI-методов, граничные случаи и `ZeroDivisionError`.
+Ожидаемый результат: **26 passed** — покрыты KPI, граничные случаи, журналирование,
+анонимизация ID, редактирование секретов и CSV-экспорт.
 
 ---
 
@@ -273,6 +275,7 @@ pytest tests/ -v
 | `TELEGRAM_CHAT_ID` | Числовой ID чата пользователя | — | ✅ для бота |
 | `CHROMA_DB_PATH` | Путь к векторной БД | `./chroma_db` | |
 | `SQLITE_DB_PATH` | Путь к SQLite (история чата) | `./kpi_pulse.db` | |
+| `LOG_DB_PATH` | Путь к SQLite-журналу взаимодействий | `./kpi_pulse_logs.db` | |
 | `MAX_ROWS` | Лимит строк в датасете | `5000` | |
 
 Полный шаблон — в файле [`.env.example`](.env.example).
@@ -388,12 +391,29 @@ KPI-Pulse/
 │   ├── kpi_calculator.py  # 5 KPI, дельты, IQR-anomalies
 │   ├── rag_engine.py      # ChromaDB: index, search, clear
 │   ├── llm_client.py      # Claude API, generate_digest
+│   ├── interaction_logger.py # SQLite-аудит, метрики и защита секретов
 │   ├── telegram_bot.py    # Polling, /start, /digest, scheduler
 │   └── db.py              # SQLite: история чата, ToS flag
 │
 └── tests/
-    └── test_kpi.py        # 24 pytest-теста
+    ├── test_kpi.py        # 24 теста расчёта KPI
+    └── test_interaction_logger.py # 2 теста журналирования
 ```
+
+## Журналирование и наблюдаемость
+
+Реализация следует алгоритму учебного проекта `5-7-new_version`, но адаптирована
+к двум интерфейсам KPI Pulse. В отдельную SQLite-базу записываются:
+
+- источник события (`streamlit` или `telegram`) и тип операции;
+- статус выполнения, длительность в миллисекундах и текст ошибки;
+- вопрос и ответ AI для последующего контроля качества;
+- только SHA-256-хеш Telegram ID вместо исходного идентификатора;
+- очищенный текст: типовые API-ключи, токены и пароли заменяются на `[REDACTED]`.
+
+На вкладке «Настройки» доступны количество событий, успешные и ошибочные
+операции, среднее время ответа и экспорт журнала в `logs/kpi_pulse_interactions.csv`.
+Файлы базы, WAL и экспортированные CSV исключены из Git.
 
 ---
 
