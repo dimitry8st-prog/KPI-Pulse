@@ -64,6 +64,7 @@ class Config:
     TELEGRAM_CHAT_ID: str = ""
     CHROMA_DB_PATH: str = "./chroma_db"
     SQLITE_DB_PATH: str = "./kpi_pulse.db"
+    LOG_DB_PATH: str = "./kpi_pulse_logs.db"
     MAX_ROWS: int = 5000
     SYSTEM_PROMPT: str = field(default_factory=lambda: SYSTEM_PROMPT_TEXT)
 
@@ -79,6 +80,7 @@ class Config:
                 TELEGRAM_CHAT_ID=os.getenv("TELEGRAM_CHAT_ID", ""),
                 CHROMA_DB_PATH=os.getenv("CHROMA_DB_PATH", "./chroma_db"),
                 SQLITE_DB_PATH=os.getenv("SQLITE_DB_PATH", "./kpi_pulse.db"),
+                LOG_DB_PATH=os.getenv("LOG_DB_PATH", "./kpi_pulse_logs.db"),
                 MAX_ROWS=int(os.getenv("MAX_ROWS", "5000")),
                 SYSTEM_PROMPT=os.getenv("SYSTEM_PROMPT", SYSTEM_PROMPT_TEXT),
             )
