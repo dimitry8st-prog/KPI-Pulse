@@ -14,7 +14,10 @@ ENV/
 
 # Базы данных
 *.db
+*.db-wal
+*.db-shm
 chroma_db/
+logs/
 
 # IDE
 .idea/
