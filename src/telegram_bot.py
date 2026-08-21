@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any, Callable, Dict, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -18,6 +19,7 @@ from config import (
     WEEKLY_DIGEST_MINUTE,
     get_config,
 )
+from src.interaction_logger import Interaction, InteractionLogger
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class TelegramDigestBot:
 
     def __init__(self) -> None:
         self.config = get_config()
+        self.interaction_logger = InteractionLogger(self.config.LOG_DB_PATH)
         self._scheduler: Optional[BackgroundScheduler] = None
         self._digest_func: Optional[Callable[..., Dict[str, Any]]] = None
         self._app: Optional[Application] = None
@@ -115,11 +118,17 @@ class TelegramDigestBot:
     ) -> None:
         """Обработчик команды /start."""
         try:
+            started_at = time.perf_counter()
             if update.message:
                 await update.message.reply_text(
                     START_MESSAGE, parse_mode="Markdown"
                 )
                 logger.info("Команда /start от chat_id=%s", update.effective_chat.id)
+                self.interaction_logger.log(Interaction(
+                    source="telegram", event_type="command_start",
+                    request="/start", user_id=str(update.effective_chat.id),
+                    duration_ms=int((time.perf_counter() - started_at) * 1000),
+                ))
         except Exception as exc:
             logger.error("Ошибка обработки /start: %s", exc)
 
@@ -128,6 +137,7 @@ class TelegramDigestBot:
     ) -> None:
         """Обработчик команды /digest — отправка дайджеста по запросу."""
         try:
+            started_at = time.perf_counter()
             if not update.message or not self._digest_func:
                 return
 
@@ -141,6 +151,13 @@ class TelegramDigestBot:
 
             if error:
                 await update.message.reply_text(f"❌ Ошибка: {error}")
+                self.interaction_logger.log(Interaction(
+                    source="telegram", event_type="command_digest", status="error",
+                    request=f"/digest {month or ''}".strip(),
+                    user_id=str(update.effective_chat.id),
+                    duration_ms=int((time.perf_counter() - started_at) * 1000),
+                    error=str(error),
+                ))
                 return
 
             if not digest_text:
@@ -149,8 +166,20 @@ class TelegramDigestBot:
 
             await update.message.reply_text(digest_text, parse_mode="Markdown")
             logger.info("Дайджест отправлен по /digest в chat_id=%s", update.effective_chat.id)
+            self.interaction_logger.log(Interaction(
+                source="telegram", event_type="command_digest",
+                request=f"/digest {month or ''}".strip(), response=digest_text,
+                user_id=str(update.effective_chat.id),
+                duration_ms=int((time.perf_counter() - started_at) * 1000),
+            ))
         except Exception as exc:
             logger.error("Ошибка обработки /digest: %s", exc)
+            self.interaction_logger.log(Interaction(
+                source="telegram", event_type="command_digest", status="error",
+                request="/digest",
+                user_id=str(update.effective_chat.id) if update.effective_chat else None,
+                error=str(exc),
+            ))
             if update.message:
                 await update.message.reply_text(f"❌ Не удалось сформировать дайджест: {exc}")
 
